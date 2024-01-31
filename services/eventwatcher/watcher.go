@@ -50,6 +50,7 @@ func (w *Watcher) DiscoverInstances() {
 
 	filterArgs := filters.NewArgs()
 	filterArgs.Add("name", MINIOPREFIX+"*")
+	filterArgs.Add("status", "running")
 	containers, err := w.client.ContainerList(context.Background(), container.ListOptions{
 		Filters: filterArgs,
 	})
@@ -172,10 +173,6 @@ func (w *Watcher) handleStopEvent(instance Instance) {
 }
 
 func extractStorageInstanceInfo(inspect types.ContainerJSON) (Instance, error) {
-	if !inspect.State.Running {
-		return Instance{}, errors.New("container is not running")
-	}
-
 	user, err := getUserFromEnv(inspect.Config.Env)
 	if err != nil {
 		return Instance{}, err
