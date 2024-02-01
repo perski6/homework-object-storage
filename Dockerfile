@@ -1,9 +1,13 @@
-FROM golang:1.21
+# Builder stage
+FROM golang:1.21 AS builder
 WORKDIR /mnt/homework
 COPY . .
-RUN go build
+RUN go build -o homework-object-storage
 
-# Docker is used as a base image so you can easily start playing around in the container using the Docker command line client.
-FROM docker
-COPY --from=0 /mnt/homework/homework-object-storage /usr/local/bin/homework-object-storage
-RUN apk add bash curl
+# Final stage
+FROM alpine
+# If you need bash and curl, install them
+RUN apk add --no-cache bash curl
+# Copy the binary from the builder stage
+COPY --from=builder /mnt/homework/homework-object-storage /usr/local/bin/homework-object-storage
+ENTRYPOINT ["/usr/local/bin/homework-object-storage"]
