@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -17,13 +18,22 @@ func GetObject(w http.ResponseWriter, r *http.Request, minio storage.Service, lo
 	params := mux.Vars(r)
 	id, ok := params["id"]
 	if !ok {
-
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	object, err := minio.GetObject(ctx, id)
 	if err != nil {
+		logger.Error("error getObject", err)
 
+		if errors.Is(err, storage.InstanceNotAccessible) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write(object)
 }

@@ -5,6 +5,12 @@ import (
 	"sync"
 )
 
+type Status string
+
+const (
+	Running Status = "Running"
+	Stopped Status = "Stopped"
+)
 const maxNodes int = 1337
 
 // NodeProvider is an interface that defines methods to interact with a consistent hash ring.
@@ -12,6 +18,7 @@ type NodeProvider[T any] interface {
 	PickNode(key string) Node[T]
 	AddNode(n Node[T]) int
 	RemoveNode(host string)
+	StopNode(host string)
 }
 
 func New[T any](hasher Hasher) *ConsistentHash[T] {
@@ -27,6 +34,7 @@ type Hasher interface {
 
 // Node has a generic type T which can be used to store any type of client or data.
 type Node[T any] struct {
+	Status Status
 	Name   string
 	Client T
 }
@@ -62,7 +70,8 @@ func (h *ConsistentHash[T]) AddNode(n Node[T]) int {
 	key := h.hash(n.Name)
 	index := sort.Search(len(h.keys), func(i int) bool { return h.keys[i] >= key })
 	if index < len(h.keys) && h.keys[index] == key {
-		// Key already exists, do not add again
+		// Key already exists, do not add again just set the status to Running
+		h.nodes[index].Status = Running
 		return key
 	}
 	// Insert node at the correct position
@@ -73,6 +82,14 @@ func (h *ConsistentHash[T]) AddNode(n Node[T]) int {
 	return key
 }
 
+func (h *ConsistentHash[T]) StopNode(host string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	key := h.hash(host)
+	index := sort.Search(len(h.keys), func(i int) bool { return h.keys[i] >= key })
+	h.nodes[index].Status = Stopped
+}
 func insertNode[T any](nodes []Node[T], index int, node Node[T]) []Node[T] {
 	nodes = append(nodes, Node[T]{})     // Make space for the new node
 	copy(nodes[index+1:], nodes[index:]) // Shift nodes to the right

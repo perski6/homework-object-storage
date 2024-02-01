@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 
@@ -16,6 +17,8 @@ type Service struct {
 	logger       slog.Logger
 }
 
+var InstanceNotAccessible = errors.New("cannot access minio instance")
+
 func New(provider consistentHash.NodeProvider[*minio.Client]) *Service {
 	return &Service{
 		nodeProvider: provider,
@@ -24,7 +27,11 @@ func New(provider consistentHash.NodeProvider[*minio.Client]) *Service {
 }
 
 func (c *Service) GetObject(ctx context.Context, id string) (body []byte, err error) {
-	client := c.nodeProvider.PickNode(id).Client
+	node := c.nodeProvider.PickNode(id)
+	if node.Status == consistentHash.Stopped {
+		return nil, InstanceNotAccessible
+	}
+	client := node.Client
 
 	object, err := client.GetObject(ctx, config.App.Bucket, id, minio.GetObjectOptions{})
 	if err != nil {
@@ -37,7 +44,11 @@ func (c *Service) GetObject(ctx context.Context, id string) (body []byte, err er
 }
 
 func (c *Service) PutObject(ctx context.Context, id string, body []byte) error {
-	client := c.nodeProvider.PickNode(id).Client
+	node := c.nodeProvider.PickNode(id)
+	if node.Status == consistentHash.Stopped {
+		return InstanceNotAccessible
+	}
+	client := node.Client
 
 	_, err := client.PutObject(ctx, config.App.Bucket, id, bytes.NewReader(body), int64(len(body)), minio.PutObjectOptions{})
 	if err != nil {

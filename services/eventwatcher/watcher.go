@@ -169,7 +169,7 @@ func (w *Watcher) handleStartEvent(instance Instance) {
 }
 
 func (w *Watcher) handleStopEvent(instance Instance) {
-	w.nodeProvider.RemoveNode(instance.Host)
+	w.nodeProvider.StopNode(instance.Host)
 }
 
 func extractStorageInstanceInfo(inspect types.ContainerJSON) (Instance, error) {
