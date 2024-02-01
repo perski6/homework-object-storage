@@ -43,34 +43,6 @@ func (h *ConsistentHash[T]) hash(key string) int {
 	return h.hasher.Hash(key) % h.maxNodes
 }
 
-func (h *ConsistentHash[T]) AddNode(n Node[T]) int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	key := h.hash(n.Name)
-	index := sort.Search(len(h.keys), func(i int) bool { return h.keys[i] >= key })
-	if index < len(h.keys) && h.keys[index] == key {
-		// Key already exists, do not add again
-		return key
-	}
-	h.nodes = append(h.nodes[:index], append([]Node[T]{n}, h.nodes[index:]...)...)
-	h.keys = append(h.keys[:index], append([]int{key}, h.keys[index:]...)...)
-
-	return key
-}
-
-func (h *ConsistentHash[T]) RemoveNode(host string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	key := h.hash(host)
-	index := sort.Search(len(h.keys), func(i int) bool { return h.keys[i] >= key })
-	if index < len(h.keys) && h.keys[index] == key {
-		h.nodes = append(h.nodes[:index], h.nodes[index+1:]...)
-		h.keys = append(h.keys[:index], h.keys[index+1:]...)
-	}
-}
-
 func (h *ConsistentHash[T]) PickNode(key string) Node[T] {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -81,4 +53,57 @@ func (h *ConsistentHash[T]) PickNode(key string) Node[T] {
 		index = 0
 	}
 	return h.nodes[index]
+}
+
+func (h *ConsistentHash[T]) AddNode(n Node[T]) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	key := h.hash(n.Name)
+	index := sort.Search(len(h.keys), func(i int) bool { return h.keys[i] >= key })
+	if index < len(h.keys) && h.keys[index] == key {
+		// Key already exists, do not add again
+		return key
+	}
+	// Insert node at the correct position
+	h.nodes = insertNode(h.nodes, index, n)
+	// Insert key at the correct position
+	h.keys = insertKey(h.keys, index, key)
+
+	return key
+}
+
+func insertNode[T any](nodes []Node[T], index int, node Node[T]) []Node[T] {
+	nodes = append(nodes, Node[T]{})     // Make space for the new node
+	copy(nodes[index+1:], nodes[index:]) // Shift nodes to the right
+	nodes[index] = node                  // Insert new node
+	return nodes
+}
+
+func insertKey(keys []int, index int, key int) []int {
+	keys = append(keys, 0)             // Make space for the new key
+	copy(keys[index+1:], keys[index:]) // Shift keys to the right
+	keys[index] = key                  // Insert new key
+	return keys
+}
+
+func (h *ConsistentHash[T]) RemoveNode(host string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	key := h.hash(host)
+	index := sort.Search(len(h.keys), func(i int) bool { return h.keys[i] >= key })
+	if index < len(h.keys) && h.keys[index] == key {
+		// Remove node and key at the correct position
+		h.nodes = removeNode(h.nodes, index)
+		h.keys = removeKey(h.keys, index)
+	}
+}
+
+func removeNode[T any](nodes []Node[T], index int) []Node[T] {
+	return append(nodes[:index], nodes[index+1:]...)
+}
+
+func removeKey(keys []int, index int) []int {
+	return append(keys[:index], keys[index+1:]...)
 }
